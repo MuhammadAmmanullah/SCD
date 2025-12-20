@@ -1,0 +1,458 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <map>
+#include <string>
+#include <sstream>
+#include <cstdlib>  // for atoi
+
+using namespace std;
+
+// ===================== STRUCTS =====================
+struct Student {
+    string username;
+    string password;
+    string department;
+    map<string,int> grades;          // subject -> grade
+    map<string,bool> attendance;     // subject -> present/absent
+    vector<string> issuedBooks;
+    vector<string> enrolledSubjects; // subjects enrolled in
+};
+
+struct Teacher {
+    string username;
+    string password;
+    string subject;
+};
+
+struct Librarian {
+    string username;
+    string password;
+};
+
+// ===================== GLOBAL DATA =====================
+vector<Student> students;
+vector<Teacher> teachers;
+vector<Librarian> librarians;
+
+// ===================== FUNCTION DECLARATIONS =====================
+void loadData();
+void saveData();
+
+bool adminLogin(string username, string password);
+bool teacherLogin(string username, string password, int &index);
+bool studentLogin(string username, string password, int &index);
+bool librarianLogin(string username, string password, int &index);
+
+void adminMenu();
+void teacherMenu(int index);
+void studentMenu(int index);
+void librarianMenu(int index);
+
+void registerStudent();
+void registerTeacher();
+void registerLibrarian();
+void manageStudents();
+void manageTeachers();
+void manageLibrarians();
+
+void viewEnrolledStudents(int teacherIndex);
+void markAttendance(int teacherIndex);
+void gradeStudents(int teacherIndex);
+void studentEnrollTeacher(int studentIndex);
+void issueBook();
+void returnBook();
+void viewIssuedBooks();
+
+// ===================== MAIN =====================
+int main() {
+    loadData();
+
+    string username, password;
+    int choice;
+    cout << "===== SCHOOL MANAGEMENT SYSTEM =====\n";
+    cout << "Login as:\n1. Admin\n2. Teacher\n3. Student\n4. Librarian\nEnter choice: ";
+    cin >> choice;
+    cout << "Username: ";
+    cin >> username;
+    cout << "Password: ";
+    cin >> password;
+
+    if(choice==1){
+        if(adminLogin(username,password)) adminMenu();
+        else cout<<"Invalid admin login!\n";
+    } else if(choice==2){
+        int index;
+        if(teacherLogin(username,password,index)) teacherMenu(index);
+        else cout<<"Invalid teacher login!\n";
+    } else if(choice==3){
+        int index;
+        if(studentLogin(username,password,index)) studentMenu(index);
+        else cout<<"Invalid student login!\n";
+    } else if(choice==4){
+        int index;
+        if(librarianLogin(username,password,index)) librarianMenu(index);
+        else cout<<"Invalid librarian login!\n";
+    } else {
+        cout<<"Invalid choice!\n";
+    }
+
+    saveData();
+    return 0;
+}
+
+// ===================== DATA LOAD & SAVE =====================
+void loadData() {
+    ifstream fin("students.txt");
+    if(fin.is_open()){
+        string line;
+        while(getline(fin,line)){
+            Student s;
+            string gradesStr, attendanceStr, booksStr, enrolledStr;
+            stringstream ss(line);
+            getline(ss,s.username,',');
+            getline(ss,s.password,',');
+            getline(ss,s.department,',');
+            getline(ss,gradesStr,',');
+            getline(ss,attendanceStr,',');
+            getline(ss,booksStr,',');
+            getline(ss,enrolledStr);
+
+            // Grades
+            stringstream gs(gradesStr); string g;
+            while(getline(gs,g,';')){
+                if(g.empty()) continue;
+                size_t pos=g.find(':');
+                string sub=g.substr(0,pos);
+                int grade=atoi(g.substr(pos+1).c_str());
+                s.grades[sub]=grade;
+            }
+
+            // Attendance
+            stringstream as(attendanceStr); string a;
+            while(getline(as,a,';')){
+                if(a.empty()) continue;
+                size_t pos=a.find(':');
+                string sub=a.substr(0,pos);
+                bool present=(a.substr(pos+1)=="1");
+                s.attendance[sub]=present;
+            }
+
+            // Books
+            stringstream bs(booksStr); string b;
+            while(getline(bs,b,';')){
+                if(!b.empty()) s.issuedBooks.push_back(b);
+            }
+
+            // Enrolled subjects
+            stringstream es(enrolledStr); string sub;
+            while(getline(es,sub,';')){
+                if(!sub.empty()) s.enrolledSubjects.push_back(sub);
+            }
+
+            students.push_back(s);
+        }
+        fin.close();
+    }
+
+    ifstream ft("teachers.txt");
+    if(ft.is_open()){
+        string line;
+        while(getline(ft,line)){
+            Teacher t;
+            stringstream ss(line);
+            getline(ss,t.username,',');
+            getline(ss,t.password,',');
+            getline(ss,t.subject);
+            teachers.push_back(t);
+        }
+        ft.close();
+    }
+
+    ifstream fl("librarians.txt");
+    if(fl.is_open()){
+        string line;
+        while(getline(fl,line)){
+            Librarian l;
+            stringstream ss(line);
+            getline(ss,l.username,',');
+            getline(ss,l.password);
+            librarians.push_back(l);
+        }
+        fl.close();
+    }
+}
+
+void saveData() {
+    ofstream fout("students.txt");
+    for(int i=0;i<students.size();i++){
+        Student &s=students[i];
+        fout<<s.username<<","<<s.password<<","<<s.department<<",";
+        for(map<string,int>::iterator it=s.grades.begin();it!=s.grades.end();++it)
+            fout<<it->first<<":"<<it->second<<";";
+        fout<<",";
+        for(map<string,bool>::iterator it=s.attendance.begin();it!=s.attendance.end();++it)
+            fout<<it->first<<":"<<it->second<<";";
+        fout<<",";
+        for(int j=0;j<s.issuedBooks.size();j++) fout<<s.issuedBooks[j]<<";";
+        fout<<",";
+        for(int j=0;j<s.enrolledSubjects.size();j++) fout<<s.enrolledSubjects[j]<<";";
+        fout<<"\n";
+    }
+    fout.close();
+
+    ofstream ft("teachers.txt");
+    for(int i=0;i<teachers.size();i++){
+        Teacher &t=teachers[i];
+        ft<<t.username<<","<<t.password<<","<<t.subject<<"\n";
+    }
+    ft.close();
+
+    ofstream fl("librarians.txt");
+    for(int i=0;i<librarians.size();i++){
+        Librarian &l=librarians[i];
+        fl<<l.username<<","<<l.password<<"\n";
+    }
+    fl.close();
+}
+
+// ===================== LOGIN FUNCTIONS =====================
+bool adminLogin(string username,string password){return (username=="admin" && password=="admin123");}
+bool teacherLogin(string username,string password,int &index){
+    for(int i=0;i<teachers.size();i++)
+        if(teachers[i].username==username && teachers[i].password==password){index=i; return true;}
+    return false;
+}
+bool studentLogin(string username,string password,int &index){
+    for(int i=0;i<students.size();i++)
+        if(students[i].username==username && students[i].password==password){index=i; return true;}
+    return false;
+}
+bool librarianLogin(string username,string password,int &index){
+    for(int i=0;i<librarians.size();i++)
+        if(librarians[i].username==username && librarians[i].password==password){index=i; return true;}
+    return false;
+}
+
+// ===================== ADMIN FUNCTIONS =====================
+void registerStudent(){
+    Student s;
+    cout<<"Username: "; cin>>s.username;
+    cout<<"Password: "; cin>>s.password;
+    cout<<"Department: "; cin>>s.department;
+    students.push_back(s);
+    cout<<"Student registered!\n";
+}
+void registerTeacher(){
+    Teacher t;
+    cout<<"Username: "; cin>>t.username;
+    cout<<"Password: "; cin>>t.password;
+    cout<<"Subject: "; cin>>t.subject;
+    teachers.push_back(t);
+    cout<<"Teacher registered!\n";
+}
+void registerLibrarian(){
+    Librarian l;
+    cout<<"Username: "; cin>>l.username;
+    cout<<"Password: "; cin>>l.password;
+    librarians.push_back(l);
+    cout<<"Librarian registered!\n";
+}
+void manageStudents(){
+    cout<<"--- STUDENTS ---\n";
+    for(int i=0;i<students.size();i++)
+        cout<<students[i].username<<", Dept: "<<students[i].department<<"\n";
+}
+void manageTeachers(){
+    cout<<"--- TEACHERS ---\n";
+    for(int i=0;i<teachers.size();i++)
+        cout<<teachers[i].username<<", Subject: "<<teachers[i].subject<<"\n";
+}
+void manageLibrarians(){
+    cout<<"--- LIBRARIANS ---\n";
+    for(int i=0;i<librarians.size();i++)
+        cout<<librarians[i].username<<"\n";
+}
+
+// ===================== ADMIN MENU =====================
+void adminMenu(){
+    int choice;
+    do{
+        cout<<"\n--- ADMIN MENU ---\n1.Register Student\n2.Register Teacher\n3.Register Librarian\n";
+        cout<<"4.Manage Students\n5.Manage Teachers\n6.Manage Librarians\n0.Logout\nChoice: ";
+        cin>>choice;
+        switch(choice){
+            case 1: registerStudent(); break;
+            case 2: registerTeacher(); break;
+            case 3: registerLibrarian(); break;
+            case 4: manageStudents(); break;
+            case 5: manageTeachers(); break;
+            case 6: manageLibrarians(); break;
+            case 0: cout<<"Logging out...\n"; break;
+            default: cout<<"Invalid!\n";
+        }
+    }while(choice!=0);
+}
+
+// ===================== TEACHER FUNCTIONS =====================
+void viewEnrolledStudents(int teacherIndex){
+    string subject=teachers[teacherIndex].subject;
+    cout<<"--- STUDENTS ENROLLED IN "<<subject<<" ---\n";
+    for(int i=0;i<students.size();i++){
+        Student &s=students[i];
+        for(int j=0;j<s.enrolledSubjects.size();j++)
+            if(s.enrolledSubjects[j]==subject) cout<<s.username<<"\n";
+    }
+}
+
+void markAttendance(int teacherIndex){
+    string subject=teachers[teacherIndex].subject;
+    cout<<"--- MARK ATTENDANCE "<<subject<<" ---\n";
+    for(int i=0;i<students.size();i++){
+        Student &s=students[i];
+        for(int j=0;j<s.enrolledSubjects.size();j++){
+            if(s.enrolledSubjects[j]==subject){
+                char c;
+                cout<<"Is "<<s.username<<" present? (y/n): "; cin>>c;
+                s.attendance[subject]=(c=='y'||c=='Y');
+            }
+        }
+    }
+    cout<<"Attendance marked!\n";
+}
+
+void gradeStudents(int teacherIndex){
+    string subject=teachers[teacherIndex].subject;
+    cout<<"--- GRADE STUDENTS "<<subject<<" ---\n";
+    for(int i=0;i<students.size();i++){
+        Student &s=students[i];
+        for(int j=0;j<s.enrolledSubjects.size();j++){
+            if(s.enrolledSubjects[j]==subject){
+                int grade;
+                cout<<"Enter grade for "<<s.username<<": "; cin>>grade;
+                s.grades[subject]=grade;
+            }
+        }
+    }
+    cout<<"Grades recorded!\n";
+}
+
+// ===================== TEACHER MENU =====================
+void teacherMenu(int index){
+    int choice;
+    do{
+        cout<<"\n--- TEACHER MENU ---\n1.View Enrolled Students\n2.Mark Attendance\n3.Grade Students\n0.Logout\nChoice: ";
+        cin>>choice;
+        switch(choice){
+            case 1: viewEnrolledStudents(index); break;
+            case 2: markAttendance(index); break;
+            case 3: gradeStudents(index); break;
+            case 0: cout<<"Logging out...\n"; break;
+            default: cout<<"Invalid!\n";
+        }
+    }while(choice!=0);
+}
+
+// ===================== STUDENT FUNCTIONS =====================
+void studentEnrollTeacher(int studentIndex){
+    cout<<"--- AVAILABLE TEACHERS ---\n";
+    for(int i=0;i<teachers.size();i++)
+        cout<<i+1<<". "<<teachers[i].username<<" ("<<teachers[i].subject<<")\n";
+    int choice;
+    cout<<"Select teacher number to enroll: "; cin>>choice;
+    if(choice<1 || choice>teachers.size()){cout<<"Invalid!\n"; return;}
+    string sub=teachers[choice-1].subject;
+    for(int i=0;i<students[studentIndex].enrolledSubjects.size();i++)
+        if(students[studentIndex].enrolledSubjects[i]==sub){cout<<"Already enrolled!\n"; return;}
+    students[studentIndex].enrolledSubjects.push_back(sub);
+    students[studentIndex].grades[sub]=0;
+    students[studentIndex].attendance[sub]=false;
+    cout<<"Enrolled in "<<sub<<" successfully!\n";
+}
+
+// ===================== STUDENT MENU =====================
+void studentMenu(int index){
+    int choice;
+    do{
+        cout<<"\n--- STUDENT MENU ---\n1.Enroll Teacher/Subject\n2.View Grades\n3.View Attendance\n4.View Issued Books\n0.Logout\nChoice: ";
+        cin>>choice;
+        switch(choice){
+            case 1: studentEnrollTeacher(index); break;
+            case 2:
+                cout<<"--- GRADES ---\n";
+                for(map<string,int>::iterator it=students[index].grades.begin(); it!=students[index].grades.end(); ++it)
+                    cout<<it->first<<": "<<it->second<<"\n";
+                break;
+            case 3:
+                cout<<"--- ATTENDANCE ---\n";
+                for(map<string,bool>::iterator it=students[index].attendance.begin(); it!=students[index].attendance.end(); ++it)
+                    cout<<it->first<<": "<<(it->second?"Present":"Absent")<<"\n";
+                break;
+            case 4:
+                cout<<"--- ISSUED BOOKS ---\n";
+                for(int i=0;i<students[index].issuedBooks.size();i++) cout<<students[index].issuedBooks[i]<<"\n";
+                break;
+            case 0: cout<<"Logging out...\n"; break;
+            default: cout<<"Invalid!\n";
+        }
+    }while(choice!=0);
+}
+
+// ===================== LIBRARIAN FUNCTIONS =====================
+void issueBook(){
+    string studentName, bookName;
+    cout<<"Student username: "; cin>>studentName;
+    cout<<"Book name: "; cin>>bookName;
+    for(int i=0;i<students.size();i++){
+        if(students[i].username==studentName){
+            students[i].issuedBooks.push_back(bookName);
+            cout<<"Book issued!\n"; return;
+        }
+    }
+    cout<<"Student not found!\n";
+}
+
+void returnBook(){
+    string studentName, bookName;
+    cout<<"Student username: "; cin>>studentName;
+    cout<<"Book name: "; cin>>bookName;
+    for(int i=0;i<students.size();i++){
+        if(students[i].username==studentName){
+            for(int j=0;j<students[i].issuedBooks.size();j++){
+                if(students[i].issuedBooks[j]==bookName){
+                    students[i].issuedBooks.erase(students[i].issuedBooks.begin()+j);
+                    cout<<"Book returned!\n"; return;
+                }
+            }
+            cout<<"Book not found.\n"; return;
+        }
+    }
+    cout<<"Student not found!\n";
+}
+
+void viewIssuedBooks(){
+    cout<<"--- ALL ISSUED BOOKS ---\n";
+    for(int i=0;i<students.size();i++){
+        if(students[i].issuedBooks.size()>0){
+            cout<<students[i].username<<": ";
+            for(int j=0;j<students[i].issuedBooks.size();j++) cout<<students[i].issuedBooks[j]<<" ";
+            cout<<"\n";
+        }
+    }
+}
+
+// ===================== LIBRARIAN MENU =====================
+void librarianMenu(int index){
+    int choice;
+    do{
+        cout<<"\n--- LIBRARIAN MENU ---\n1.Issue Book\n2.Return Book\n3.View All Issued Books\n0.Logout\nChoice: ";
+        cin>>choice;
+        switch(choice){
+            case 1: issueBook(); break;
+            case 2: returnBook(); break;
+            case 3: viewIssuedBooks(); break;
+            case 0: cout<<"Logging out...\n"; break;
+            default: cout<<"Invalid!\n";
+        }
+    }while(choice!=0);
+}
